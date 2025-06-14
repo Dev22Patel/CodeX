@@ -1,69 +1,47 @@
-import { useEffect, useState } from 'react';
-import reactLogo from './assets/react.svg';
-import viteLogo from '/vite.svg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import Header from './components/common/Header';
+import ProtectedRoute from './components/common/ProtectedRoutes';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Problems from './pages/Problems';
+import ProblemDetail from './pages/ProblemDetail';
+import Profile from './pages/Profile';
+import TestPage from './pages/TestPage';
+import Contests from './pages/ContestPage';
 
-function App() {
-  const [problem, setProblem] = useState(null);
-
-  useEffect(() => {
-    const fetchProblem = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/api/problems/reverse-a-string', {
-          headers: {
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIzZjc4ZWU0ZC1jMGE2LTQ5NWYtYWIwZi00ZDc5MDA1ZTJmMjMiLCJpYXQiOjE3NDk4MjEwNjYsImV4cCI6MTc1MDQyNTg2Nn0.sUR9LBeTwOMIUlnUuAxk3MUDxAUb7InYSNpV3p5O9cU'
-          }
-        });
-
-        const result = await response.json();
-        console.log("Fetched problem:", result);
-        setProblem(result.data);
-      } catch (error) {
-        console.error("Failed to fetch problem:", error);
-      }
-    };
-
-    fetchProblem();
-  }, []);
-
+const App: React.FC = () => {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <p>
-          Problem Title: <strong>{problem?.title}</strong>
-        </p>
-        <p>
-          Description: <em>{problem?.description}</em>
-        </p>
-        <p>
-          Difficulty: {problem?.difficulty}
-        </p>
-        <p>
-          Tags: {problem?.tags}
-        </p>
-        <div>
-        <p>Test Cases:</p>
-        <ul>
-            {problem?.testCases?.map(tc => (
-            <li key={tc.id}>
-                <strong>Input:</strong> {tc.input}, <strong>Output:</strong> {tc.expectedOutput}
-            </li>
-            ))}
-        </ul>
-        </div>
+    <AuthProvider>
+      <Router>
+        <div className="min-h-screen flex flex-col bg-[#0d1117] text-white">
+          <Header />
+          <main className='flex-grow'>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/problems" element={<Problems />} />
+              <Route path="/problems/:slug" element={<ProblemDetail />} />
+              <Route path="/contests" element={<Contests />} />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="problems/:problemId/submissions/history" element={<TestPage />} />
+            </Routes>
+          </main>
 
-      </div>
-    </>
+        </div>
+      </Router>
+    </AuthProvider>
   );
-}
+};
 
 export default App;
