@@ -157,8 +157,40 @@ const getProfile = async (req, res) => {
   }
 };
 
+const getSolvedProblems = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const solvedProblems = await prisma.problem.findMany({
+      where: {
+        submissions: {
+          some: {
+            userId: userId,
+            status: 'ACCEPTED',
+          },
+        },
+      },
+      distinct: ['id'],
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        difficulty: true,
+        acceptanceRate: true,
+      },
+    });
+
+    return res.status(200).json({ success: true, data: solvedProblems });
+  } catch (error) {
+    console.error("Error fetching solved problems:", error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+
 module.exports = {
   register,
   login,
-  getProfile
+  getProfile,
+  getSolvedProblems
 };

@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, login, getProfile } = require('../controllers/authController');
+const { register, login, getProfile, getSolvedProblems } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -41,5 +41,5 @@ const rateLimiter = createRateLimiter();
 router.post('/register', rateLimiter, register);
 router.post('/login', rateLimiter, login);
 router.get('/profile', authMiddleware, getProfile);
-
+router.get('/:userId/solved-problems', authMiddleware, getSolvedProblems);
 module.exports = router;

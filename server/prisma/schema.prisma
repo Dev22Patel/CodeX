@@ -55,6 +55,7 @@ model Submission {
   passedTests  Int      @default(0)
   totalTests   Int      @default(0)
   errorMessage String?  @db.Text
+  testCaseResults String? // JSON string containing detailed results
   userId       String
   problemId    String
   languageId   String
