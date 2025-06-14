@@ -1,0 +1,97 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(uuid())
+  name        String
+  email       String       @unique
+  username    String       @unique
+  password    String       // Add this field
+  avatar      String?
+  submissions Submission[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  @@map("users")
+}
+model Problem {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique
+  description String       @db.Text
+  difficulty  String       @default("EASY") // EASY, MEDIUM, HARD
+  timeLimit   Int          @default(1000)   // milliseconds
+  memoryLimit Int          @default(256)    // MB
+  solved      Int          @default(0)
+  totalSubmissions Int     @default(0)
+  acceptanceRate Float     @default(0.0)
+  isPublic    Boolean      @default(true)
+  tags        String?      // JSON array of tags
+  submissions Submission[]
+  testCases   TestCase[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  @@map("problems")
+}
+model Submission {
+  id           String   @id @default(uuid())
+  code         String   @db.Text
+  status       String   @default("PENDING") // PENDING, RUNNING, ACCEPTED, WRONG_ANSWER, TLE, MLE, RE, CE
+  score        Int      @default(0)
+  runtime      Int?     // milliseconds
+  memory       Int?     // KB
+  passedTests  Int      @default(0)
+  totalTests   Int      @default(0)
+  errorMessage String?  @db.Text
+  userId       String
+  problemId    String
+  languageId   String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem      Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  language     Language @relation(fields: [languageId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  @@index([userId])
+  @@index([problemId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("submissions")
+}
+model TestCase {
+  id             String  @id @default(uuid())
+  problemId      String
+  input          String  @db.Text
+  expectedOutput String  @db.Text
+  isPublic       Boolean @default(false) // Sample test case or hidden
+  points         Int     @default(1)
+  timeLimit      Int?    // Override problem time limit
+  memoryLimit    Int?    // Override problem memory limit
+  problem        Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@index([problemId])
+  @@map("test_cases")
+}
+model Language {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  judge0Id    Int          @unique
+  extension   String       // .py, .cpp, .java
+  isActive    Boolean      @default(true)
+  submissions Submission[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  @@map("languages")
+}
