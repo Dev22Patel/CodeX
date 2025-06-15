@@ -118,7 +118,6 @@ console.log('Show Test Cases:', showTestCases);
                 expectedOutput: testCase.expectedOutput || 'Expected output not available',
                 actualOutput: testCase.actualOutput || null,
                 executionTime: testCase.executionTime || submissionResult.runtime,
-                memory: testCase.memory || submissionResult.memory,
                 isPublic: testCase.isPublic
               };
 
@@ -142,7 +141,6 @@ console.log('Show Test Cases:', showTestCases);
                     {testCaseData.executionTime && (
                       <div className="text-xs text-gray-400">
                         {testCaseData.executionTime}ms
-                        {testCaseData.memory && ` | ${testCaseData.memory / 1024}MB`}
                       </div>
                     )}
                   </div>

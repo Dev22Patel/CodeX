@@ -5,166 +5,163 @@ const prisma = new PrismaClient();
 
 // Judge0 API configuration
 const JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com';
-const JUDGE0_API_KEY = '5ce3fab409mshcc0ab3ef1b4bacap156916jsn8464c2d8f747';
+// const JUDGE0_API_KEY = '5ce3fab409mshcc0ab3ef1b4bacap156916jsn8464c2d8f747';
 
-// Process submission function
-const processSubmission = async (submissionId, code, language, testCases, timeLimit, memoryLimit) => {
+// Process submission function with batch submission
+const processSubmission = async (submissionId, code, language, testCases, timeLimit) => {
   console.log(`Processing submission ${submissionId} for language ${language.name}`);
   try {
     let passedTests = 0;
     let totalTests = testCases.length;
     let status = 'ACCEPTED';
     let maxRuntime = 0;
-    let maxMemory = 0;
     let errorMessage = null;
-    let testCaseResults = []; // Store detailed results for each test case
+    let testCaseResults = [];
 
-    // Process each test case
-    for (let i = 0; i < testCases.length; i++) {
-      const testCase = testCases[i];
+    // Prepare batch submission data
+    const batchData = testCases.map((testCase, index) => ({
+      source_code: Buffer.from(code).toString('base64'),
+      language_id: language.judge0Id,
+      stdin: Buffer.from(testCase.input).toString('base64'),
+      expected_output: Buffer.from(testCase.expectedOutput.trim()).toString('base64'),
+      cpu_time_limit: (timeLimit || 1000) / 1000,
+      testCaseIndex: index, // Store index for mapping results
+      testCaseId: testCase.id
+    }));
 
-      try {
-        // Submit code to Judge0
-        const submissionData = {
-          source_code: Buffer.from(code).toString('base64'),
-          language_id: language.judge0Id,
-          stdin: Buffer.from(testCase.input).toString('base64'),
-          expected_output: Buffer.from(testCase.expectedOutput.trim()).toString('base64'),
-          cpu_time_limit: (timeLimit || 1000) / 1000,
-          memory_limit: (memoryLimit || 256) * 1024,
-        };
+    // Headers for Judge0 API
+    const headers = {
+      'Content-Type': 'application/json',
+    };
 
-        const headers = {
-          'Content-Type': 'application/json',
-        };
+    if (JUDGE0_API_KEY) {
+      headers['X-RapidAPI-Key'] = JUDGE0_API_KEY;
+      headers['X-RapidAPI-Host'] = 'judge0-ce.p.rapidapi.com';
+    }
 
-        if (JUDGE0_API_KEY) {
-          headers['X-RapidAPI-Key'] = JUDGE0_API_KEY;
-          headers['X-RapidAPI-Host'] = 'judge0-ce.p.rapidapi.com';
-        }
+    // Submit batch to Judge0
+    const batchResponse = await axios.post(
+      `${JUDGE0_API_URL}/submissions/batch?base64_encoded=true`,
+      { submissions: batchData },
+      { headers, timeout: 30000 }
+    );
 
-        const createResponse = await axios.post(
-          `${JUDGE0_API_URL}/submissions?base64_encoded=true&wait=true`,
-          submissionData,
-          { headers, timeout: 30000 }
-        );
+    const tokens = batchResponse.data.map(result => result.token);
 
-        const result = createResponse.data;
-        console.log(`Test case ${i + 1} result:`, result);
+    // Poll for batch results
+    let results = [];
+    let attempts = 0;
+    const maxAttempts = 30;
+    const pollInterval = 1000;
 
-        // Decode outputs for storage
-        const actualOutput = result.stdout ?
-          Buffer.from(result.stdout, 'base64').toString('utf-8').trim() : '';
-        const expectedOutput = testCase.expectedOutput.trim();
-        const stderr = result.stderr ?
-          Buffer.from(result.stderr, 'base64').toString('utf-8') : null;
-        const compileOutput = result.compile_output ?
-          Buffer.from(result.compile_output, 'base64').toString('utf-8') : null;
+    while (attempts < maxAttempts) {
+      const batchResultResponse = await axios.get(
+        `${JUDGE0_API_URL}/submissions/batch?tokens=${tokens.join(',')}&base64_encoded=true`,
+        { headers, timeout: 30000 }
+      );
 
-        // Update runtime and memory stats
-        if (result.time) {
-          maxRuntime = Math.max(maxRuntime, parseFloat(result.time) * 1000);
-        }
-        if (result.memory) {
-          maxMemory = Math.max(maxMemory, result.memory);
-        }
+      results = batchResultResponse.data.submissions;
+      const allProcessed = results.every(result => result.status?.id !== 1 && result.status?.id !== 2); // 1: In Queue, 2: Processing
 
-        // Determine if test case passed
-        const testPassed = result.status?.id === 3; // Accepted
-        if (testPassed) {
-          passedTests++;
-        }
+      if (allProcessed) break;
 
-        // Store detailed test case result
-        const testCaseResult = {
-          testCaseIndex: i,
-          testCaseId: testCase.id,
-          passed: testPassed,
-          input: testCase.input,
-          expectedOutput: expectedOutput,
-          actualOutput: actualOutput,
-          runtime: result.time ? parseFloat(result.time) * 1000 : 0,
-          memory: result.memory || 0,
-          statusId: result.status?.id || 0,
-          statusDescription: result.status?.description || 'Unknown',
-          stderr: stderr,
-          compileOutput: compileOutput,
-          isPublic: testCase.isPublic || false
-        };
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
 
-        testCaseResults.push(testCaseResult);
+    if (attempts >= maxAttempts) {
+      throw new Error('Timeout waiting for batch results');
+    }
 
-        // Set overall status based on the error type
-        if (!testPassed && status === 'ACCEPTED') {
-          switch (result.status?.id) {
-            case 4: // Wrong Answer
-              status = 'WRONG_ANSWER';
-              break;
-            case 5: // Time Limit Exceeded
-              status = 'TLE';
-              break;
-            case 6: // Compilation Error
-              status = 'CE';
-              errorMessage = compileOutput || 'Compilation error';
-              break;
-            case 7: case 8: case 9: case 10: case 11: case 12: // Runtime Errors
-              status = 'RE';
-              errorMessage = stderr || 'Runtime error';
-              break;
-            case 13: case 14: // System Errors
-              status = 'RE';
-              errorMessage = 'System error occurred';
-              break;
-            default:
-              status = 'WRONG_ANSWER';
-          }
+    // Process each result
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const testCase = testCases[batchData[i].testCaseIndex];
 
-          // If it's a compilation error, stop processing further test cases
-          if (result.status?.id === 6) {
+      // Decode outputs
+      const actualOutput = result.stdout ?
+        Buffer.from(result.stdout, 'base64').toString('utf-8').trim() : '';
+      const expectedOutput = testCase.expectedOutput.trim();
+      const stderr = result.stderr ?
+        Buffer.from(result.stderr, 'base64').toString('utf-8') : null;
+      const compileOutput = result.compile_output ?
+        Buffer.from(result.compile_output, 'base64').toString('utf-8') : null;
+
+      // Update runtime and memory stats
+      if (result.time) {
+        maxRuntime = Math.max(maxRuntime, parseFloat(result.time) * 1000);
+      }
+
+
+      // Determine if test case passed
+      const testPassed = result.status?.id === 3; // Accepted
+      if (testPassed) {
+        passedTests++;
+      }
+
+      // Store detailed test case result
+      const testCaseResult = {
+        testCaseIndex: i,
+        testCaseId: testCase.id,
+        passed: testPassed,
+        input: testCase.input,
+        expectedOutput: expectedOutput,
+        actualOutput: actualOutput,
+        runtime: result.time ? parseFloat(result.time) * 1000 : 0,
+        statusId: result.status?.id || 0,
+        statusDescription: result.status?.description || 'Unknown',
+        stderr: stderr,
+        compileOutput: compileOutput,
+        isPublic: testCase.isPublic || false
+      };
+
+      testCaseResults.push(testCaseResult);
+
+      // Set overall status based on error type
+      if (!testPassed && status === 'ACCEPTED') {
+        switch (result.status?.id) {
+          case 4: // Wrong Answer
+            status = 'WRONG_ANSWER';
             break;
-          }
+          case 5: // Time Limit Exceeded
+            status = 'TLE';
+            break;
+          case 6: // Compilation Error
+            status = 'CE';
+            errorMessage = compileOutput || 'Compilation error';
+            break;
+          case 7: case 8: case 9: case 10: case 11: case 12: // Runtime Errors
+            status = 'RE';
+            errorMessage = stderr || 'Runtime error';
+            break;
+          case 13: case 14: // System Errors
+            status = 'RE';
+            errorMessage = 'System error occurred';
+            break;
+          default:
+            status = 'WRONG_ANSWER';
         }
 
-      } catch (testError) {
-        console.error(`Error processing test case ${i + 1}:`, testError);
-        status = 'RE';
-        errorMessage = 'Error executing code';
-
-        // Add error result for this test case
-        testCaseResults.push({
-          testCaseIndex: i,
-          testCaseId: testCase.id,
-          passed: false,
-          input: testCase.input,
-          expectedOutput: testCase.expectedOutput.trim(),
-          actualOutput: '',
-          runtime: 0,
-          memory: 0,
-          statusId: 0,
-          statusDescription: 'System Error',
-          stderr: 'Error executing code',
-          compileOutput: null,
-          isPublic: testCase.isPublic || false
-        });
-        break;
+        // Stop processing further if compilation error
+        if (result.status?.id === 6) {
+          break;
+        }
       }
     }
 
     // Calculate score
     const score = totalTests > 0 ? Math.round((passedTests / totalTests) * 100) : 0;
 
-    // Update submission in database with detailed results
+    // Update submission in database
     await prisma.submission.update({
       where: { id: submissionId },
       data: {
         status,
         score,
         runtime: Math.round(maxRuntime),
-        memory: maxMemory,
         passedTests,
         totalTests,
         errorMessage,
-        // Store test case results as JSON
         testCaseResults: JSON.stringify(testCaseResults)
       }
     });
@@ -202,7 +199,7 @@ const processSubmission = async (submissionId, code, language, testCases, timeLi
   }
 };
 
-// Get submission status - UPDATED to include detailed test case results
+// Get submission status
 const getSubmissionStatus = async (req, res) => {
   try {
     const { submissionId } = req.params;
@@ -253,7 +250,6 @@ const getSubmissionStatus = async (req, res) => {
         testCase: index + 1,
         passed: index < submission.passedTests,
         isPublic: testCase.isPublic,
-        // Include detailed results if available
         ...(detailedResult && {
           input: detailedResult.input,
           expectedOutput: detailedResult.expectedOutput,
@@ -291,7 +287,7 @@ const getSubmissionStatus = async (req, res) => {
   }
 };
 
-// Rest of the code remains the same...
+// Submit solution
 const submitSolution = async (req, res) => {
   try {
     const { problemId } = req.params;
@@ -342,7 +338,7 @@ const submitSolution = async (req, res) => {
     });
 
     process.nextTick(() => {
-      processSubmission(submission.id, code, language, problem.testCases, problem.timeLimit, problem.memoryLimit)
+      processSubmission(submission.id, code, language, problem.testCases, problem.timeLimit)
         .catch(error => {
           console.error('Async processing error:', error);
         });

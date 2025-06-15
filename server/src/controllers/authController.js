@@ -2,7 +2,7 @@ const { PrismaClient } = require('../generated/prisma');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { generateToken } = require('../utils/jwt');
 const { validateRegister, validateLogin } = require('../validators/authValidator');
-
+const redisClient = require('../redis/redisclient'); // Assuming you have a rate limiter middleware
 const prisma = new PrismaClient();
 
 const register = async (req, res) => {
@@ -160,6 +160,12 @@ const getProfile = async (req, res) => {
 const getSolvedProblems = async (req, res) => {
   const { userId } = req.params;
 
+  const result = await redisClient.get(`solvedProblems:${userId}`);
+    if (result) {
+        console.log("Cache hit for solved problems");
+        return res.status(200).json({ success: true, data: JSON.parse(result) });
+   }
+
   try {
     const solvedProblems = await prisma.problem.findMany({
       where: {
@@ -179,7 +185,7 @@ const getSolvedProblems = async (req, res) => {
         acceptanceRate: true,
       },
     });
-
+    redisClient.set(`solvedProblems:${userId}`, JSON.stringify(solvedProblems), 'EX', 3600); // Cache for 1 hour
     return res.status(200).json({ success: true, data: solvedProblems });
   } catch (error) {
     console.error("Error fetching solved problems:", error);
