@@ -8,7 +8,8 @@ const authMiddleware = require('../middleware/authMiddleware');
 router.get('/', ProblemController.getAllProblems);
 router.get('/stats', ProblemController.getProblemStats);
 router.get('/:identifier', ProblemController.getProblem);
-router.get('/:problemId/submissions/history',authMiddleware, ProblemController.getProblemStats);
+// router.get('/:problemId/submissions/history',authMiddleware, ProblemController.getProblemStats);
+router.get('/:problemId/submissions/history', ProblemController.getUserSubmissionHistory);
 // implement karvanu baki che
 
 

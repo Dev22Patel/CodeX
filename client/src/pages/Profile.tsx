@@ -33,31 +33,31 @@ const Profile: React.FC = () => {
 }, [user, token]);
 
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch('http://localhost:3000/api/auth/profile', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
+//   useEffect(() => {
+//     const fetchProfile = async () => {
+//       try {
+//         const res = await fetch('http://localhost:3000/api/auth/profile', {
+//           method: 'GET',
+//           headers: {
+//             'Content-Type': 'application/json',
+//             Authorization: `Bearer ${token}`,
+//           },
+//         });
 
-        const data = await res.json();
-        console.log("Profile data:", data);
-      } catch (err) {
-        console.error("Error fetching profile:", err);
-      }
-    };
+//         const data = await res.json();
+//         console.log("Profile data:", data);
+//       } catch (err) {
+//         console.error("Error fetching profile:", err);
+//       }
+//     };
 
-    fetchProfile();
-  }, [token]);
+//     fetchProfile();
+//   }, [token]);
 
   if (!user) return <Navigate to="/login" />;
 
   return (
-    <div className="max-w-auto mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#0A0A23] min-h-screen text-white">
+    <div className="max-w-auto mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-slate-950 min-h-screen text-white">
       <div className="bg-[#1C1C2D] m-12 shadow-md rounded-lg p-6">
         <div className="flex items-center space-x-6 mb-8">
           <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center">
@@ -80,24 +80,7 @@ const Profile: React.FC = () => {
               <CheckCircle className="h-8 w-8 text-green-400" />
             </div>
           </div>
-          <div className="bg-[#2A2A3C] p-6 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">0</p>
-                <p className="text-gray-400">Submissions</p>
-              </div>
-              <BarChart3 className="h-8 w-8 text-blue-400" />
-            </div>
-          </div>
-          <div className="bg-[#2A2A3C] p-6 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">0%</p>
-                <p className="text-gray-400">Acceptance Rate</p>
-              </div>
-              <Trophy className="h-8 w-8 text-yellow-400" />
-            </div>
-          </div>
+
         </div>
 
         <div className="mt-8">

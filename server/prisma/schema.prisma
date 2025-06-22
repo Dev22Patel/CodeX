@@ -19,13 +19,17 @@ model User {
   name        String
   email       String       @unique
   username    String       @unique
-  password    String       // Add this field
+  password    String
   avatar      String?
   submissions Submission[]
+  contestSubmissions ContestSubmission[]
+  contestRanks ContestRank[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   @@map("users")
 }
+
+// Regular Practice Problems
 model Problem {
   id          String       @id @default(uuid())
   title       String
@@ -45,6 +49,44 @@ model Problem {
   updatedAt   DateTime     @updatedAt
   @@map("problems")
 }
+
+// Contest-Specific Problems (Private)
+model ContestProblem {
+  id              String              @id @default(uuid())
+  title           String
+  slug            String              @unique
+  description     String              @db.Text
+  difficulty      String              @default("EASY") // EASY, MEDIUM, HARD
+  timeLimit       Int                 @default(1000)   // milliseconds
+  memoryLimit     Int                 @default(256)    // MB
+  points          Int                 @default(100)    // Points for solving this problem
+  tags            String?             // JSON array of tags
+
+  // Contest Association
+  contestId       String
+  problemOrder    Int                 // Problem order in contest (1, 2, 3...)
+
+  // Privacy Controls
+  isVisible       Boolean             @default(false)  // Visible to participants during contest
+  releaseTime     DateTime?           // When problem becomes visible (contest start + delay)
+
+  // Post-Contest Behavior
+  makePublicAfter Boolean             @default(false)  // Convert to public problem after contest
+  publicProblemId String?             // Reference to created public problem
+
+  contest         Contest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  testCases       ContestTestCase[]
+  submissions     ContestSubmission[]
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([contestId, problemOrder])
+  @@index([contestId])
+  @@index([isVisible])
+  @@map("contest_problems")
+}
+
 model Submission {
   id           String   @id @default(uuid())
   code         String   @db.Text
@@ -55,7 +97,7 @@ model Submission {
   passedTests  Int      @default(0)
   totalTests   Int      @default(0)
   errorMessage String?  @db.Text
-  testCaseResults String? // JSON string containing detailed results
+  testCaseResults String? @db.LongText// JSON string containing detailed results
   userId       String
   problemId    String
   languageId   String
@@ -70,6 +112,7 @@ model Submission {
   @@index([createdAt])
   @@map("submissions")
 }
+
 model TestCase {
   id             String  @id @default(uuid())
   problemId      String
@@ -85,6 +128,24 @@ model TestCase {
   @@index([problemId])
   @@map("test_cases")
 }
+
+// Contest Test Cases (Separate for Security)
+model ContestTestCase {
+  id                  String         @id @default(uuid())
+  contestProblemId    String
+  input               String         @db.Text
+  expectedOutput      String         @db.Text
+  isPublic            Boolean        @default(false) // Sample test case or hidden
+  points              Int            @default(1)
+  timeLimit           Int?           // Override problem time limit
+  memoryLimit         Int?           // Override problem memory limit
+  contestProblem      ContestProblem @relation(fields: [contestProblemId], references: [id], onDelete: Cascade)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  @@index([contestProblemId])
+  @@map("contest_test_cases")
+}
+
 model Language {
   id          String       @id @default(uuid())
   name        String       @unique
@@ -92,7 +153,119 @@ model Language {
   extension   String       // .py, .cpp, .java
   isActive    Boolean      @default(true)
   submissions Submission[]
+  contestSubmissions ContestSubmission[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   @@map("languages")
 }
+
+// Contest Models
+
+model Contest {
+  id              String              @id @default(uuid())
+  title           String
+  slug            String              @unique
+  description     String?             @db.Text
+  startTime       DateTime
+  endTime         DateTime
+  isActive        Boolean             @default(true)
+
+  // Contest Settings
+  isPublic        Boolean             @default(true)   // Public or private contest
+  registrationRequired Boolean        @default(false)  // Require registration
+  maxParticipants Int?                                 // Limit participants
+
+  // Problem Release Strategy
+  problemReleaseStrategy String       @default("ALL_AT_START") // ALL_AT_START, GRADUAL, ON_DEMAND
+
+  contestProblems ContestProblem[]
+  submissions     ContestSubmission[]
+  ranks           ContestRank[]
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  @@map("contests")
+}
+
+model ContestSubmission {
+  id                String         @id @default(uuid())
+  contestId         String
+  userId            String
+  contestProblemId  String         // Now references ContestProblem instead of Problem
+  languageId        String
+
+  // Submission Details
+  code              String         @db.Text
+  status            String         @default("PENDING") // PENDING, RUNNING, ACCEPTED, WRONG_ANSWER, TLE, MLE, RE, CE
+  runtime           Int?           // milliseconds
+  memory            Int?           // KB
+  passedTests       Int            @default(0)
+  totalTests        Int            @default(0)
+  errorMessage      String?        @db.Text
+  testCaseResults   String?        @db.LongText // JSON string containing detailed results
+
+  // Contest Scoring
+  points            Int            @default(0)        // Points earned (0 if wrong, full points if correct)
+  solvedAt          DateTime?                         // When problem was first solved (null if not solved)
+
+  // Penalty System (for future use)
+  penalty           Int            @default(0)        // Penalty points for wrong submissions
+  attempts          Int            @default(1)        // Number of attempts for this problem
+
+  contest           Contest        @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contestProblem    ContestProblem @relation(fields: [contestProblemId], references: [id], onDelete: Cascade)
+  language          Language       @relation(fields: [languageId], references: [id])
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([contestId])
+  @@index([contestId, userId])
+  @@index([contestId, userId, contestProblemId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("contest_submissions")
+}
+
+// Persistent Leaderboard for Historical Data
+model ContestRank {
+  id            String   @id @default(uuid())
+  contestId     String
+  userId        String
+  rank          Int                        // Final rank in contest
+  totalPoints   Int      @default(0)      // Total points earned
+  totalTime     Int      @default(0)      // Total time spent solving (sum of solve times for each problem)
+  problemsSolved Int     @default(0)      // Number of problems solved
+  totalPenalty  Int      @default(0)      // Total penalty points
+
+  contest       Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([contestId, userId])
+  @@index([contestId, rank])
+  @@index([contestId])
+  @@map("contest_ranks")
+}
+
+/*
+Enhanced Two-Tier Leaderboard System:
+
+1. REALTIME (Redis) - During Contest:
+   Key: contest:{contestId}:leaderboard
+   Score: (totalPoints * 1000000) - totalSolveTimeInSeconds - penalty
+   Member: userId
+
+2. PERSISTENT (Database) - After Contest Ends:
+   ContestRank table stores final standings
+
+Key Benefits of Separate Contest Problems:
+- Complete privacy during contests
+- No pollution of practice problem pool
+- Contest-specific configurations
+- Ability to convert to public problems post-contest
+- Better security and fairness
+*/

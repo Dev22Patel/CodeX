@@ -16,6 +16,7 @@ class ProblemController {
           difficulty: true,
           solved: true,
           totalSubmissions: true,
+          tags: true,
           createdAt: true
         },
         orderBy: {

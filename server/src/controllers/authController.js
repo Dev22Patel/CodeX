@@ -165,7 +165,6 @@ const getSolvedProblems = async (req, res) => {
         console.log("Cache hit for solved problems");
         return res.status(200).json({ success: true, data: JSON.parse(result) });
    }
-
   try {
     const solvedProblems = await prisma.problem.findMany({
       where: {
@@ -185,7 +184,7 @@ const getSolvedProblems = async (req, res) => {
         acceptanceRate: true,
       },
     });
-    redisClient.set(`solvedProblems:${userId}`, JSON.stringify(solvedProblems), 'EX', 3600); // Cache for 1 hour
+    redisClient.set(`solvedProblems:${userId}`, JSON.stringify(solvedProblems), 'EX', 600); // Cache for 1 hour
     return res.status(200).json({ success: true, data: solvedProblems });
   } catch (error) {
     console.error("Error fetching solved problems:", error);

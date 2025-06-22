@@ -8,6 +8,7 @@ const problemRoutes = require('./src/routes/problemRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const launguagesRoutes = require('./src/routes/launguagesRoutes');
 const submissionRoutes = require('./src/routes/submissionRoutes');
+const contestRoutes = require('./src/routes/contestRoutes');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -31,7 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/problems', problemRoutes);
 app.use('/api/launguages',launguagesRoutes);
 app.use('/api/submissions', submissionRoutes);
-
+app.use('/api/contests', contestRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {

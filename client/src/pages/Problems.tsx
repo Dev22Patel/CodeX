@@ -62,6 +62,17 @@ const Problems: React.FC = () => {
     }
   };
 
+  // Helper function to parse tags safely
+  const parseTags = (tagsString: string): string[] => {
+    try {
+      if (!tagsString) return [];
+      return JSON.parse(tagsString);
+    } catch (error) {
+      console.error('Error parsing tags:', error);
+      return [];
+    }
+  };
+
   const getStats = () => {
     const total = problems.length;
     const solved = problems.filter(p => p.solved).length;
@@ -203,68 +214,91 @@ const Problems: React.FC = () => {
                   <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Tags
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {filteredProblems.length > 0 ? (
-                  filteredProblems.map((problem) => (
-                    <tr key={problem.id} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-3">
-                          {problem.solved ? (
-                            <CheckCircle className="h-4 w-4 text-green-400" />
-                          ) : (
-                            <Circle className="h-4 w-4 text-red-400" />
-                          )}
-                          <Link
-                            to={`/problems/${problem.slug}`}
-                            className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                  filteredProblems.map((problem) => {
+                    const parsedTags = parseTags(problem.tags);
+
+                    return (
+                      <tr key={problem.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-3">
+                            {problem.solved ? (
+                              <CheckCircle className="h-4 w-4 text-green-400" />
+                            ) : (
+                              <Circle className="h-4 w-4 text-red-400" />
+                            )}
+                            <Link
+                              to={`/problems/${problem.slug}`}
+                              className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                            >
+                              {problem.title}
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium border ${getDifficultyColor(
+                              problem.difficulty
+                            )}`}
                           >
-                            {problem.title}
-                          </Link>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium border ${getDifficultyColor(
-                            problem.difficulty
-                          )}`}
-                        >
-                          {problem.difficulty}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                        {problem.totalSubmissions?.toLocaleString() || 0}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                        <div className="flex items-center space-x-2">
-                          <span>{problem.acceptanceRate ? `${problem.acceptanceRate}%` : 'N/A'}</span>
-                          {(problem.acceptanceRate ?? 0) > 0 && (
-                            <div className="w-12 bg-slate-700 rounded-full h-1.5">
-                              <div
-                                className="bg-blue-400 h-1.5 rounded-full"
-                                style={{ width: `${problem.acceptanceRate}%` }}
-                              ></div>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            problem.solved
-                              ? 'text-green-400 bg-green-500/10 border border-green-500/20'
-                              : 'text-slate-400 bg-slate-500/10 border border-slate-500/20'
-                          }`}
-                        >
-                          {problem.solved ? 'Accepted' : 'Not Solved'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                            {problem.difficulty}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                          {problem.totalSubmissions?.toLocaleString() || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                          <div className="flex items-center space-x-2">
+                            <span>{problem.acceptanceRate ? `${problem.acceptanceRate}%` : 'N/A'}</span>
+                            {(problem.acceptanceRate ?? 0) > 0 && (
+                              <div className="w-12 bg-slate-700 rounded-full h-1.5">
+                                <div
+                                  className="bg-blue-400 h-1.5 rounded-full"
+                                  style={{ width: `${problem.acceptanceRate}%` }}
+                                ></div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              problem.solved
+                                ? 'text-green-400 bg-green-500/10 border border-green-500/20'
+                                : 'text-slate-400 bg-slate-500/10 border border-slate-500/20'
+                            }`}
+                          >
+                            {problem.solved ? 'Accepted' : 'Not Solved'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-wrap gap-2">
+                            {parsedTags.length > 0 ? (
+                              parsedTags.map((tag, index) => (
+                                <span
+                                  key={index}
+                                  className="text-xs font-medium text-slate-300 bg-slate-700 px-2 py-1 rounded-full"
+                                >
+                                  {tag}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-slate-500">No tags</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="text-slate-400">
                         <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="text-lg font-medium mb-2">No problems found</p>

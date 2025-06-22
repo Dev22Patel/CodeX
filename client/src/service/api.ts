@@ -1,4 +1,4 @@
-import type { ApiResponse, LoginCredentials, Problem, ProblemStats, RegisterData, User } from '../types/index';
+import type { ApiResponse, LoginCredentials, Problem, ProblemStats, RegisterData, User, ContestProblem, SubmissionResult } from '../types/index';
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
@@ -43,57 +43,98 @@ export const api = {
     return response.json();
   },
 
-//   submitSolution: async (
-//     problemId: string,
-//     code: string,
-//     token: string
-//   ): Promise<ApiResponse<{ passed: boolean; results: { testCaseId: string; passed: boolean; output: string }[] }>> => {
-//     const response = await fetch(`${API_BASE_URL}/submissions`, {
-//       method: 'POST',
-//       headers: {
-//         'Content-Type': 'application/json',
-//         Authorization: `Bearer ${token}`,
-//       },
-//       body: JSON.stringify({ problemId, code }),
-//     });
-//     return response.json();
-//   },
-
-  async submitSolution(problemId:string, code:string, token:string, languageId:string): Promise<any> {
+  submitSolution: async (
+    problemId: string,
+    code: string,
+    token: string,
+    languageId: string
+  ): Promise<ApiResponse<{ submissionId: string; status: string }>> => {
     const response = await fetch(`${API_BASE_URL}/submissions/submit/${problemId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        code,
-        languageId // Make sure to pass the language UUID
-      })
+      body: JSON.stringify({ code, languageId }),
     });
-
-    return await response.json();
+    return response.json();
   },
 
-  // Get submission status
-  async getSubmissionStatus(submissionId:string, token:string): Promise<any> {
+  getSubmissionStatus: async (
+    submissionId: string,
+    token: string
+  ): Promise<ApiResponse<SubmissionResult>> => {
     const response = await fetch(`${API_BASE_URL}/submissions/status/${submissionId}`, {
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
-
-    return await response.json();
+    return response.json();
   },
 
-  // Get user submissions for a problem
-  async getUserSubmissions(problemId:string, token:string, page = 1, limit = 10): Promise<any> {
+  getUserSubmissions: async (
+    problemId: string,
+    token: string,
+    page = 1,
+    limit = 10
+  ): Promise<ApiResponse<{ submissions: SubmissionResult[]; total: number }>> => {
     const response = await fetch(`${API_BASE_URL}/submissions/problem/${problemId}?page=${page}&limit=${limit}`, {
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
+    return response.json();
+  },
 
-    return await response.json();
-  }
+  getContestProblem: async (
+    contestSlug: string,
+    problemSlug: string,
+    token?: string
+  ): Promise<ApiResponse<ContestProblem>> => {
+    console.log('Calling getContestProblem:', { contestSlug, problemSlug, hasToken: !!token });
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log('Token added to headers');
+    } else {
+      console.log('No token provided');
+    }
+
+    const url = `${API_BASE_URL}/contests/${contestSlug}/problems/${problemSlug}`;
+    const response = await fetch(url, { headers });
+    const data = await response.json();
+    console.log('Response data:', data);
+    return data;
+  },
+
+submitContestSolution: async (
+  contestSlug: string,  // Changed from contestId
+  problemSlug: string,  // Changed from problemId
+  code: string,
+  token: string,
+  languageId: string
+): Promise<ApiResponse<{ submissionId: string; status: string; contestProblemId: string; problemTitle: string }>> => {
+  console.log('Submitting contest solution:', { contestSlug, problemSlug, languageId });
+  const response = await fetch(`${API_BASE_URL}/contests/${contestSlug}/submissions/${problemSlug}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ code, languageId }),
+  });
+  return response.json();
+},
+
+  getContestSubmissionStatus: async (
+    submissionId: string,
+    token: string
+  ): Promise<ApiResponse<SubmissionResult>> => {
+    const response = await fetch(`${API_BASE_URL}/contests/submissions/status/${submissionId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.json();
+  },
 };

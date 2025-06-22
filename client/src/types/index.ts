@@ -23,27 +23,33 @@ export interface TestCase {
   id: string;
   input: string;
   expectedOutput: string;
+  isPublic: boolean;
+  points: number;
 }
 
 export interface TestCaseResult {
-  id: number;
-  input: string;
-  expectedOutput: string;
+  testCase: number;
+  passed: boolean;
+  isPublic: boolean;
+  input?: string;
+  expectedOutput?: string;
   actualOutput?: string;
-  status: 'PENDING' | 'PASSED' | 'FAILED' | 'ERROR';
-  executionTime?: number;
-  memory?: number;
+  runtime?: number;
+  statusDescription?: string;
+  stderr?: string | null;
 }
 
 export interface SubmissionResult {
-  status: 'PENDING' | 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'MEMORY_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'COMPILATION_ERROR';
-  score: number;
-  testCases: TestCaseResult[];
-  totalTestCases: number;
-  passedTestCases: number;
-  executionTime?: number;
-  memory?: number;
-  errorMessage?: string;
+  submissionId: string;
+  status: 'PENDING' | 'ACCEPTED' | 'WRONG_ANSWER' | 'TLE' | 'MLE' | 'RE' | 'CE';
+  points?: number;
+  score?: number;
+  runtime: number;
+  memory: number;
+  passedTests: number;
+  totalTests: number;
+  errorMessage?: string | null;
+  results: TestCaseResult[];
 }
 
 export interface Problem {
@@ -55,6 +61,23 @@ export interface Problem {
   acceptanceRate?: number;
   totalSubmissions?: number;
   testCases?: TestCase[];
+  tags: string[];
+}
+
+export interface ContestProblem {
+  contestId: string;
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  difficulty: string;
+  timeLimit: number;
+  memoryLimit: number;
+  points: number;
+  tags?: string[] | null;
+  isVisible: boolean;
+  releaseTime?: string | null;
+  testCases: TestCase[];
 }
 
 export interface ProblemStats {
@@ -91,4 +114,25 @@ export interface AuthProviderProps {
 
 export interface ProtectedRouteProps {
   children: ReactNode;
+}
+
+export interface Contest {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  _count: {
+    contestProblems: number;
+    submissions: number;
+  };
+}
+
+export interface ContestDetail extends Omit<Contest, '_count'> {
+  contestProblems: ContestProblem[];
+  _count: {
+    submissions: number;
+  };
 }
