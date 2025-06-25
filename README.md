@@ -32,9 +32,6 @@ CodeX is a full-stack online coding platform that allows users to practice codin
 - **JWT** for authentication
 - **Judge0** API for code execution
 
-### ☁️ DevOps
-- **NGINX API Gateway**
-- **Docker** for containerization
 ---
 
 ## 📦 Installation
@@ -61,3 +58,9 @@ npx prisma migrate dev --name init
 cd ../client
 npm install
 npm run dev
+
+
+![UML Diagram](images/usecase.png)
+
+![UML Diagram](images/class-dia.png)
+
