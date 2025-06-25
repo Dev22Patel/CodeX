@@ -43,11 +43,21 @@ const processSubmission = async (submissionId, code, language, testCases, timeLi
       'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
     };
 
+
+    // main call the judge0 api to get the response for the batch of testcases
+    
     const batchResponse = await axios.post(
       `${JUDGE0_API_URL}/submissions/batch?base64_encoded=true`,
       { submissions: batchData },
       { headers, timeout: 30000 }
     );
+
+     // const batchResponse = await axios.post(
+    //   `${JUDGE0_API_URL}/submissions/batch?base64_encoded=true`,
+    //   { submissions: batchData },
+    //   { headers, timeout: 30000 },
+    //   { callback_url: "<YOUR_CALLBACK_URL> since i have not hosted my backend the callback url is not exposed on the internet so it want find my server and give the response so for timebeing i am handling the response in the same function>" }
+    // );
 
     const tokens = batchResponse.data.map(result => result.token);
     let results = [];
