@@ -10,7 +10,6 @@ import Register from './pages/Register';
 import Problems from './pages/Problems';
 import ProblemDetail from './pages/ProblemDetail';
 import Profile from './pages/Profile';
-import TestPage from './pages/LeaderBoardPage';
 import ContestList from './components/contest/contestList';
 import ContestDetailComponent from './components/contest/contestDetail';
 import ContestProblemDetail from './components/contest/contestProblemDetail'; // New component
