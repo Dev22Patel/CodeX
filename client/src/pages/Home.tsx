@@ -139,10 +139,10 @@ const Home: React.FC = () => {
                 <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                 <span className="text-red-400 font-semibold uppercase tracking-wide text-sm">Live Now</span>
               </div>
-              <h2 className="text-4xl font-bold text-white mb-4">Weekly Challenge Championship</h2>
+              <h2 className="text-4xl font-bold text-white mb-4">codeforces-contest-spring</h2>
               <p className="text-xl text-slate-300 mb-8 max-w-2xl">
-                Join 2,847 developers in our flagship contest. Solve 6 algorithmic problems in 3 hours.
-                Winner takes home $1,000 and eternal glory.
+                Join 5 developers in our flagship contest. Solve 6 algorithmic problems in 3 hours.
+                Winner takes home 1,000rs and eternal glory.
               </p>
               <div className="flex flex-wrap gap-6 items-center">
                 <div className="flex items-center gap-2 text-slate-300">
@@ -151,10 +151,10 @@ const Home: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-slate-300">
                   <Users className="w-5 h-5 text-cyan-400" />
-                  <span className="font-semibold">2,847 participants</span>
+                  <span className="font-semibold">5 participants</span>
                 </div>
                 <Link
-                  to="/contest/weekly-championship"
+                  to="/contest/codeforces-contest-spring"
                   className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-8 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 font-semibold"
                 >
                   Join Battle

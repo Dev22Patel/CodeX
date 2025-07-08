@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, Search, Filter, Trophy, TrendingUp, CheckCircle, XCircle, Circle } from 'lucide-react';
+import { Search, Filter, TrendingUp, CheckCircle, XCircle, Circle } from 'lucide-react';
 import { api } from '../service/api';
 import Loading from '../components/common/Loading';
 import type { Problem } from '../types/index';
+import { useAuth } from '../context/AuthContext';
 
 const Problems: React.FC = () => {
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -12,9 +13,10 @@ const Problems: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-
+  const {token} = useAuth();
   useEffect(() => {
-    api.getProblems().then((response) => {
+    // Pass token to getProblems
+    api.getProblems(token || undefined).then((response) => {
       if (response.success) {
         setProblems(response.data.problems);
         setFilteredProblems(response.data.problems);
@@ -22,7 +24,7 @@ const Problems: React.FC = () => {
       }
       setLoading(false);
     });
-  }, []);
+  }, [token]); // 
 
   useEffect(() => {
     let filtered = problems;
@@ -39,11 +41,11 @@ const Problems: React.FC = () => {
       filtered = filtered.filter(problem => problem.difficulty === difficultyFilter);
     }
 
-    // Status filter
+    // Status filter - Updated to use userStatus
     if (statusFilter === 'SOLVED') {
-      filtered = filtered.filter(problem => problem.solved);
+      filtered = filtered.filter(problem => problem.userStatus?.isAccepted === true);
     } else if (statusFilter === 'UNSOLVED') {
-      filtered = filtered.filter(problem => !problem.solved);
+      filtered = filtered.filter(problem => problem.userStatus?.isAccepted !== true);
     }
 
     setFilteredProblems(filtered);
@@ -75,12 +77,16 @@ const Problems: React.FC = () => {
 
   const getStats = () => {
     const total = problems.length;
-    const solved = problems.filter(p => p.solved).length;
+    // Updated to use userStatus for personal stats
+    const solved = problems.filter(p => p.userStatus?.isAccepted === true).length;
     const easy = problems.filter(p => p.difficulty === 'EASY').length;
     const medium = problems.filter(p => p.difficulty === 'MEDIUM').length;
     const hard = problems.filter(p => p.difficulty === 'HARD').length;
+    const easySolved = problems.filter(p => p.difficulty === 'EASY' && p.userStatus?.isAccepted === true).length;
+    const mediumSolved = problems.filter(p => p.difficulty === 'MEDIUM' && p.userStatus?.isAccepted === true).length;
+    const hardSolved = problems.filter(p => p.difficulty === 'HARD' && p.userStatus?.isAccepted === true).length;
 
-    return { total, solved, easy, medium, hard };
+    return { total, solved, easy, medium, hard, easySolved, mediumSolved, hardSolved };
   };
 
   if (loading) return <Loading />;
@@ -97,18 +103,9 @@ const Problems: React.FC = () => {
               <h1 className="text-3xl font-bold text-white mb-2">Problems</h1>
               <p className="text-slate-400">Solve coding challenges to improve your skills</p>
             </div>
-            {/* <div className="flex items-center space-x-4">
-              <Link
-                to="/contests"
-                className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-purple-500/25"
-              >
-                <Trophy className="h-4 w-4" />
-                <span>Contests</span>
-              </Link>
-            </div> */}
           </div>
 
-          {/* Stats Cards */}
+          {/* Stats Cards - Updated to show user-specific stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-1">
@@ -129,21 +126,27 @@ const Problems: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
                 <span className="text-xs font-medium text-slate-400 uppercase">Easy</span>
               </div>
-              <div className="text-2xl font-bold text-emerald-400">{stats.easy}</div>
+              <div className="text-2xl font-bold text-emerald-400">
+                {stats.easySolved}/{stats.easy}
+              </div>
             </div>
             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-1">
                 <div className="w-3 h-3 rounded-full bg-amber-400"></div>
                 <span className="text-xs font-medium text-slate-400 uppercase">Medium</span>
               </div>
-              <div className="text-2xl font-bold text-amber-400">{stats.medium}</div>
+              <div className="text-2xl font-bold text-amber-400">
+                {stats.mediumSolved}/{stats.medium}
+              </div>
             </div>
             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-1">
                 <div className="w-3 h-3 rounded-full bg-red-400"></div>
                 <span className="text-xs font-medium text-slate-400 uppercase">Hard</span>
               </div>
-              <div className="text-2xl font-bold text-red-400">{stats.hard}</div>
+              <div className="text-2xl font-bold text-red-400">
+                {stats.hardSolved}/{stats.hard}
+              </div>
             </div>
           </div>
 
@@ -223,15 +226,19 @@ const Problems: React.FC = () => {
                 {filteredProblems.length > 0 ? (
                   filteredProblems.map((problem) => {
                     const parsedTags = parseTags(problem.tags);
+                    // Use userStatus to determine if user has solved this problem
+                    const isSolvedByUser = problem.userStatus?.isAccepted === true;
 
                     return (
                       <tr key={problem.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center space-x-3">
-                            {problem.solved ? (
+                            {isSolvedByUser ? (
                               <CheckCircle className="h-4 w-4 text-green-400" />
+                            ) : problem.userStatus?.hasSubmitted ? (
+                              <XCircle className="h-4 w-4 text-red-400" />
                             ) : (
-                              <Circle className="h-4 w-4 text-red-400" />
+                              <Circle className="h-4 w-4 text-slate-400" />
                             )}
                             <Link
                               to={`/problems/${problem.slug}`}
@@ -269,12 +276,18 @@ const Problems: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              problem.solved
+                              isSolvedByUser
                                 ? 'text-green-400 bg-green-500/10 border border-green-500/20'
+                                : problem.userStatus?.hasSubmitted
+                                ? 'text-red-400 bg-red-500/10 border border-red-500/20'
                                 : 'text-slate-400 bg-slate-500/10 border border-slate-500/20'
                             }`}
                           >
-                            {problem.solved ? 'Accepted' : 'Not Solved'}
+                            {isSolvedByUser
+                              ? 'Accepted'
+                              : problem.userStatus?.hasSubmitted
+                              ? 'Attempted'
+                              : 'Not Attempted'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

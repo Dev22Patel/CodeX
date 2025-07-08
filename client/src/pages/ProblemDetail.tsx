@@ -1,4 +1,4 @@
-// Updated ProblemDetail component with polling and test case display
+// Updated ProblemDetail component with UserSubmissions integration
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../service/api';
@@ -7,7 +7,9 @@ import Toast from '../components/common/Toast';
 import ProblemDescription from '../components/problem/ProblemDescription';
 import CodeEditor from '../components/problem/CodeEditor';
 import TestCaseDisplay from '../components/problem/TestCaseDisplay';
+import UserSubmissions from '../components/userSubmission';
 import { useAuth } from '../context/AuthContext';
+import { History } from 'lucide-react';
 import type { Problem, ToastProps, SubmissionResult } from '../types/index';
 
 const ProblemDetail: React.FC = () => {
@@ -18,6 +20,7 @@ const ProblemDetail: React.FC = () => {
   const [toast, setToast] = useState<ToastProps | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
   const [showTestCases, setShowTestCases] = useState<boolean>(false);
+  const [showUserSubmissions, setShowUserSubmissions] = useState<boolean>(false);
 
   const { token } = useAuth();
 
@@ -125,6 +128,21 @@ const ProblemDetail: React.FC = () => {
   return (
     <div className="max-w bg-zinc-900 mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {toast && <Toast {...toast} />}
+
+      {/* Header with problem title and submissions button */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-white">{problem.title}</h1>
+        {token && (
+          <button
+            onClick={() => setShowUserSubmissions(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <History className="h-5 w-5" />
+            <span>My Submissions</span>
+          </button>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <ProblemDescription problem={problem} />
         <CodeEditor
@@ -141,6 +159,15 @@ const ProblemDetail: React.FC = () => {
           submissionResult={submissionResult}
           showTestCases={showTestCases}
           onClose={() => setShowTestCases(false)}
+        />
+      )}
+
+      {/* User Submissions Modal */}
+      {showUserSubmissions && (
+        <UserSubmissions
+          problemId={problem.id}
+          isOpen={showUserSubmissions}
+          onClose={() => setShowUserSubmissions(false)}
         />
       )}
     </div>

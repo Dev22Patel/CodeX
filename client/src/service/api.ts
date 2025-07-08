@@ -28,10 +28,18 @@ export const api = {
     return response.json();
   },
 
-  getProblems: async (): Promise<ApiResponse<{ problems: Problem[] }>> => {
-    const response = await fetch(`${API_BASE_URL}/problems`);
-    return response.json();
-  },
+  // Updated getProblems function in your api.js file
+getProblems: async (token?: string): Promise<ApiResponse<{ problems: Problem[] }>> => {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/problems`, {
+    headers
+  });
+  return response.json();
+},
 
   getProblem: async (identifier: string): Promise<ApiResponse<Problem>> => {
     const response = await fetch(`${API_BASE_URL}/problems/${identifier}`);
@@ -65,20 +73,6 @@ export const api = {
     token: string
   ): Promise<ApiResponse<SubmissionResult>> => {
     const response = await fetch(`${API_BASE_URL}/submissions/status/${submissionId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.json();
-  },
-
-  getUserSubmissions: async (
-    problemId: string,
-    token: string,
-    page = 1,
-    limit = 10
-  ): Promise<ApiResponse<{ submissions: SubmissionResult[]; total: number }>> => {
-    const response = await fetch(`${API_BASE_URL}/submissions/problem/${problemId}?page=${page}&limit=${limit}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -137,4 +131,23 @@ submitContestSolution: async (
     });
     return response.json();
   },
+
+  getUserSubmissions: async (problemId: string, token: string, page: number = 1, limit: number = 10) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/submissions/problem/${problemId}?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Get user submissions error:', error);
+      return { success: false, message: 'Failed to fetch submissions' };
+    }
+  },
+
 };

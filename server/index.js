@@ -1,26 +1,32 @@
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const { PrismaClient } = require('./src/generated/prisma');
 require('dotenv').config();
+
 // Import routes
 const problemRoutes = require('./src/routes/problemRoutes');
 const authRoutes = require('./src/routes/authRoutes');
-const launguagesRoutes = require('./src/routes/launguagesRoutes');
+const languagesRoutes = require('./src/routes/launguagesRoutes'); // Fixed typo
 const submissionRoutes = require('./src/routes/submissionRoutes');
 const contestRoutes = require('./src/routes/contestRoutes');
+const leaderboardRoutes = require('./src/routes/leaderboardRoutes');
+const adminRoutes = require('./src/routes/adminRoutes'); // Admin routes
 
 const app = express();
+const server = http.createServer(app);
 const prisma = new PrismaClient();
+const socketManager = require('./src/websocket/socketManager');
 
-// Trust proxy for rate limiting
-app.set('trust proxy', 1);
+// Initialize socket manager
+socketManager.initialize(server);
 
-// Security middleware
-app.use(helmet());
 app.use(cors({
     origin: 'http://localhost:5173',
-    credentials: true
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization", 'x-admin-token']
 }));
 
 // Body parsing middleware
@@ -30,10 +36,11 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/problems', problemRoutes);
-app.use('/api/launguages',launguagesRoutes);
+app.use('/api/launguages', languagesRoutes); // Fixed typo
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/contests', contestRoutes);
-
+app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/admin', adminRoutes); // Admin routes
 // Health check route
 app.get('/health', (req, res) => {
   res.json({
@@ -79,23 +86,29 @@ app.use((error, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+// Use server.listen instead of app.listen
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
+  console.log(`🔌 Socket.IO server initialized`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
   await prisma.$disconnect();
-  process.exit(0);
+  server.close(() => {
+    process.exit(0);
+  });
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
   await prisma.$disconnect();
-  process.exit(0);
+  server.close(() => {
+    process.exit(0);
+  });
 });
 
 module.exports = app;

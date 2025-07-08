@@ -3,13 +3,13 @@ const router = express.Router();
 const {
   getAllContests,
   getContestBySlug,
-  getContestLeaderboard,
-  getProblemBySlug,
   getContestProblemBySlug,
-  submitContestSolution,
   getContestSubmissionStatus,
   getUserContestSubmissions
 } = require('../controllers/contestController');
+
+const { submitContestSolution } = require('../controllers/submissionController');
+
 const authMiddleware = require('../middleware/authMiddleware');
 
 // Debug middleware to log requests
@@ -25,14 +25,12 @@ router.post('/:contestSlug/submissions/:problemSlug', authMiddleware, submitCont
 
 // Contest general routes
 router.get('/', getAllContests);
-router.get('/:slug/leaderboard', getContestLeaderboard);
 router.get('/:slug', authMiddleware, getContestBySlug);
 
 // Submission status
 router.get('/submissions/status/:submissionId', authMiddleware, getContestSubmissionStatus);
 
 // Standalone problem route
-router.get('/problems/:slug', authMiddleware, getProblemBySlug);
 
 // User contest submissions
 router.get('/:contestSlug/problems/:problemSlug/submissions', authMiddleware, getUserContestSubmissions);

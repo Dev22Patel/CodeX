@@ -39,18 +39,6 @@ export interface TestCaseResult {
   stderr?: string | null;
 }
 
-export interface SubmissionResult {
-  submissionId: string;
-  status: 'PENDING' | 'ACCEPTED' | 'WRONG_ANSWER' | 'TLE' | 'MLE' | 'RE' | 'CE';
-  points?: number;
-  score?: number;
-  runtime: number;
-  memory: number;
-  passedTests: number;
-  totalTests: number;
-  errorMessage?: string | null;
-  results: TestCaseResult[];
-}
 
 export interface Problem {
   id: string;
@@ -58,10 +46,25 @@ export interface Problem {
   slug: string;
   description: string;
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  acceptanceRate?: number;
-  totalSubmissions?: number;
-  testCases?: TestCase[];
-  tags: string[];
+  timeLimit: number;
+  memoryLimit: number;
+  solved: number; // Total users who solved this problem
+  totalSubmissions: number;
+  acceptanceRate: number;
+  isPublic: boolean;
+  tags: string;
+  createdAt: string;
+  updatedAt: string;
+
+  // User-specific status (only present when user is authenticated)
+  userStatus?: {
+    status: string | null;
+    score: number | null;
+    hasSubmitted: boolean;
+    isAccepted: boolean;
+    bestRuntime?: number;
+    bestMemory?: number;
+  };
 }
 
 export interface ContestProblem {
@@ -135,4 +138,69 @@ export interface ContestDetail extends Omit<Contest, '_count'> {
   _count: {
     submissions: number;
   };
+}
+
+
+// Add these types to your existing types/index.ts file
+
+export interface Submission {
+  id: string;
+  status: 'PENDING' | 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'COMPILATION_ERROR';
+  code: string;
+  score: number;
+  runtime: number;
+  memory: number;
+  passedTests: number;
+  totalTests: number;
+  createdAt: string;
+  language: {
+    id: string;
+    name: string;
+  };
+  errorMessage?: string;
+}
+
+export interface SubmissionResponse {
+  success: boolean;
+  data: {
+    submissions: Submission[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  };
+  message?: string;
+}
+
+export interface UserSubmissionsProps {
+  problemId: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+// Update existing SubmissionResult interface if needed
+export interface SubmissionResult {
+  submissionId: string;
+  status: 'PENDING' | 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'COMPILATION_ERROR';
+  score: number;
+  runtime?: number;
+  memory?: number;
+  passedTests: number;
+  totalTests: number;
+  results: Array<{
+    testCase: number;
+    passed: boolean;
+    isPublic: boolean;
+    input?: string;
+    expectedOutput?: string;
+    actualOutput?: string;
+    runtime?: number;
+    memory?: number;
+    statusDescription?: string;
+    stderr?: string;
+  }>;
+  errorMessage?: string;
+  createdAt: string;
 }

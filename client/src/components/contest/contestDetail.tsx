@@ -115,9 +115,15 @@ const ContestDetailComponent: React.FC = () => {
       solvedProblems: []
     };
 
-    const solvedProblems = contest.contestProblems.filter(problem =>
-      problem.userStatus?.isAccepted
-    );
+    // Debug: Log contestProblems to check data
+    console.log('Contest Problems:', contest.contestProblems);
+
+    const solvedProblems = contest.contestProblems.filter(problem => {
+      console.log(`Problem: ${problem.title}, userStatus:`, problem.userStatus);
+      return problem.userStatus?.isAccepted;
+    });
+
+    console.log('Solved Problems:', solvedProblems);
 
     const totalPoints = solvedProblems.reduce((sum, problem) =>
       sum + (problem.userStatus?.points || 0), 0
@@ -127,7 +133,6 @@ const ContestDetailComponent: React.FC = () => {
       sum + problem.points, 0
     );
 
-    // Calculate real solve times based on actual submission data
     const solveTimesMinutes = solvedProblems.map(problem => {
       const solveTime = problem.userStatus?.solveTimeMinutes;
       return solveTime || 0;
@@ -323,7 +328,7 @@ const ContestDetailComponent: React.FC = () => {
               <h2 className="text-3xl font-bold text-zinc-100">Your Progress</h2>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-gradient-to-br from-emerald-900/50 to-emerald-800/50 p-4 rounded-xl border border-emerald-700/50">
                 <div className="flex items-center gap-3 mb-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400" />
@@ -342,26 +347,16 @@ const ContestDetailComponent: React.FC = () => {
                 <p className="text-2xl font-bold text-orange-200">{userStats.remainingProblems}</p>
               </div>
 
-              <div className="bg-gradient-to-br from-yellow-900/50 to-yellow-800/50 p-4 rounded-xl border border-yellow-700/50">
-                <div className="flex items-center gap-3 mb-2">
-                  <Award className="w-5 h-5 text-yellow-400" />
-                  <span className="font-semibold text-yellow-300">Points</span>
-                </div>
-                <p className="text-2xl font-bold text-yellow-200">
-                  {userStats.totalPoints} / {userStats.maxPoints}
-                </p>
-              </div>
 
-              <div className="bg-gradient-to-br from-cyan-900/50 to-cyan-800/50 p-4 rounded-xl border border-cyan-700/50">
+              {/* <div className="bg-gradient-to-br from-cyan-900/50 to-cyan-800/50 p-4 rounded-xl border border-cyan-700/50">
                 <div className="flex items-center gap-3 mb-2">
                   <Clock className="w-5 h-5 text-cyan-400" />
-                  <span className="font-semibold text-cyan-300">Time Taken </span>
+                  <span className="font-semibold text-cyan-300">Avg. Time</span>
                 </div>
-                <p className="text-lg font-bold text-cyan-200">
+                <p className="text-2xl font-bold text-cyan-200">
                   {userStats.averageTime > 0 ? formatTime(userStats.averageTime) : 'N/A'}
                 </p>
-              </div>
-
+              </div> */}
             </div>
 
             {/* Progress Bar */}
@@ -476,11 +471,11 @@ const ContestDetailComponent: React.FC = () => {
                                 <Trophy className="w-4 h-4 text-yellow-400" />
                                 <span className="font-medium">Points:</span>
                                 <span className="font-bold text-yellow-300">{contestProblem.points}</span>
-                                {isSolved && (
+                                {/* {isSolved && (
                                   <span className="text-emerald-300 font-bold">
                                     (+{contestProblem.userStatus.points})
                                   </span>
-                                )}
+                                )} */}
                               </div>
 
                               {isSolved && solveTime && (

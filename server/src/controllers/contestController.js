@@ -1,210 +1,7 @@
 const { PrismaClient } = require('../generated/prisma');
 const prisma = new PrismaClient();
-const {
-  submitContestSolution,
-  getContestLeaderboardData,
-  getContestRank
-} = require('./submissionController');
 
-// Helper function to calculate user contest statistics
-const calculateUserContestStats = async (contestId, userId, contestStartTime) => {
-  const userSubmissions = await prisma.contestSubmission.findMany({
-    where: {
-      contestId,
-      userId,
-      status: 'ACCEPTED'
-    },
-    include: {
-      contestProblem: {
-        select: { points: true, id: true }
-      }
-    },
-    orderBy: { createdAt: 'asc' }
-  });
-
-  if (userSubmissions.length === 0) {
-    return {
-      totalPoints: 0,
-      totalTime: 0,
-      problemsSolved: 0,
-      totalPenalty: 0
-    };
-  }
-
-  // Group by problem to get first accepted submission for each
-  const problemSolutions = {};
-  userSubmissions.forEach(submission => {
-    const problemId = submission.contestProblemId;
-    if (!problemSolutions[problemId]) {
-      problemSolutions[problemId] = submission;
-    }
-  });
-
-  let totalPoints = 0;
-  let totalTime = 0;
-  let problemsSolved = Object.keys(problemSolutions).length;
-
-  // Calculate penalty for wrong submissions before acceptance
-  let totalPenalty = 0;
-
-  for (const [problemId, acceptedSubmission] of Object.entries(problemSolutions)) {
-    totalPoints += acceptedSubmission.contestProblem.points;
-
-    // Calculate solve time in minutes
-    const solveTime = Math.max(1, Math.round(
-      (new Date(acceptedSubmission.createdAt).getTime() - contestStartTime.getTime()) / (1000 * 60)
-    ));
-    totalTime += solveTime;
-
-    // Count wrong submissions before this accepted one for penalty
-    const wrongSubmissions = await prisma.contestSubmission.count({
-      where: {
-        contestId,
-        userId,
-        contestProblemId: problemId,
-        status: { not: 'ACCEPTED' },
-        createdAt: { lt: acceptedSubmission.createdAt }
-      }
-    });
-
-    totalPenalty += wrongSubmissions * 20; // 20 minutes penalty per wrong submission
-  }
-
-  return {
-    totalPoints,
-    totalTime,
-    problemsSolved,
-    totalPenalty
-  };
-};
-
-// Function to update/create contest rank in database
-const updateContestRankInDB = async (contestId, userId) => {
-  try {
-    const contest = await prisma.contest.findUnique({
-      where: { id: contestId },
-      select: { startTime: true }
-    });
-
-    if (!contest) return;
-
-    const stats = await calculateUserContestStats(contestId, userId, contest.startTime);
-
-    // Upsert contest rank
-    await prisma.contestRank.upsert({
-      where: {
-        contestId_userId: {
-          contestId,
-          userId
-        }
-      },
-      update: {
-        totalPoints: stats.totalPoints,
-        totalTime: stats.totalTime,
-        problemsSolved: stats.problemsSolved,
-        totalPenalty: stats.totalPenalty,
-        updatedAt: new Date()
-      },
-      create: {
-        contestId,
-        userId,
-        totalPoints: stats.totalPoints,
-        totalTime: stats.totalTime,
-        problemsSolved: stats.problemsSolved,
-        totalPenalty: stats.totalPenalty,
-        rank: 0 // Will be calculated later
-      }
-    });
-
-    // Recalculate ranks for all participants
-    await recalculateContestRanks(contestId);
-
-  } catch (error) {
-    console.error('Error updating contest rank in DB:', error);
-  }
-};
-
-// Function to recalculate ranks based on scoring system
-const recalculateContestRanks = async (contestId) => {
-  try {
-    // Get all contest ranks sorted by score
-    const contestRanks = await prisma.contestRank.findMany({
-      where: { contestId },
-      orderBy: [
-        { totalPoints: 'desc' },    // Higher points first
-        { totalTime: 'asc' },       // Lower time second
-        { totalPenalty: 'asc' }     // Lower penalty third
-      ]
-    });
-
-    // Update ranks
-    for (let i = 0; i < contestRanks.length; i++) {
-      await prisma.contestRank.update({
-        where: { id: contestRanks[i].id },
-        data: { rank: i + 1 }
-      });
-    }
-  } catch (error) {
-    console.error('Error recalculating contest ranks:', error);
-  }
-};
-
-// Enhanced function to get leaderboard with both Redis and DB data
-const getEnhancedLeaderboard = async (contestId, limit = 50) => {
-  try {
-    // Get from database with user details
-    const dbLeaderboard = await prisma.contestRank.findMany({
-      where: { contestId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            avatar: true
-          }
-        }
-      },
-      orderBy: [
-        { rank: 'asc' }
-      ],
-      take: limit
-    });
-
-    // Try to get Redis data as well for comparison/backup
-    let redisLeaderboard = [];
-    try {
-      redisLeaderboard = await getContestLeaderboardData(contestId, limit);
-    } catch (error) {
-      console.warn('Redis leaderboard unavailable, using DB only:', error.message);
-    }
-
-    return {
-      leaderboard: dbLeaderboard.map(entry => ({
-        rank: entry.rank,
-        userId: entry.userId,
-        user: entry.user,
-        totalPoints: entry.totalPoints,
-        totalTime: entry.totalTime,
-        problemsSolved: entry.problemsSolved,
-        totalPenalty: entry.totalPenalty,
-        lastUpdated: entry.updatedAt
-      })),
-      source: 'database',
-      redisBackup: redisLeaderboard
-    };
-  } catch (error) {
-    console.error('Error getting enhanced leaderboard:', error);
-    // Fallback to Redis only
-    const redisLeaderboard = await getContestLeaderboardData(contestId, limit);
-    return {
-      leaderboard: redisLeaderboard,
-      source: 'redis_fallback',
-      redisBackup: []
-    };
-  }
-};
-
+// Function to get all contests
 const getAllContests = async (req, res) => {
   try {
     const contests = await prisma.contest.findMany({
@@ -219,8 +16,7 @@ const getAllContests = async (req, res) => {
         _count: {
           select: {
             contestProblems: true,
-            submissions: true,
-            ranks: true // Include participant count
+            submissions: true
           }
         }
       },
@@ -233,6 +29,7 @@ const getAllContests = async (req, res) => {
   }
 };
 
+// Function to get contest by slug
 const getContestBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
@@ -259,8 +56,7 @@ const getContestBySlug = async (req, res) => {
         },
         _count: {
           select: {
-            submissions: true,
-            ranks: true
+            submissions: true
           }
         }
       }
@@ -283,10 +79,10 @@ const getContestBySlug = async (req, res) => {
     }
 
     let userSubmissionStatus = {};
-    let userContestStats = null;
+    let solvedCount = 0;
 
     if (userId) {
-      // Get user submissions
+      // Get user submissions, grouped by problem to find best submission
       const userSubmissions = await prisma.contestSubmission.findMany({
         where: { userId, contestId: contest.id },
         select: { contestProblemId: true, status: true, points: true, createdAt: true },
@@ -324,46 +120,10 @@ const getContestBySlug = async (req, res) => {
         return acc;
       }, {});
 
-      // Get user's contest stats from database first, fallback to Redis
-      try {
-        const userRank = await prisma.contestRank.findUnique({
-          where: {
-            contestId_userId: {
-              contestId: contest.id,
-              userId
-            }
-          }
-        });
-
-        if (userRank) {
-          userContestStats = {
-            rank: userRank.rank,
-            totalPoints: userRank.totalPoints,
-            totalProblemsAttempted: Object.keys(userSubmissionStatus).length,
-            totalProblemsSolved: userRank.problemsSolved,
-            totalTime: userRank.totalTime,
-            totalPenalty: userRank.totalPenalty
-          };
-        } else {
-          // Fallback to Redis
-          const redisRank = await getContestRank(contest.id, userId);
-          userContestStats = {
-            rank: redisRank,
-            totalProblemsAttempted: Object.keys(userSubmissionStatus).length,
-            totalProblemsSolved: Object.values(userSubmissionStatus).filter(s => s.isAccepted).length
-          };
-        }
-      } catch (error) {
-        console.error('Error fetching user contest stats:', error);
-        userContestStats = {
-          rank: null,
-          totalProblemsAttempted: 0,
-          totalProblemsSolved: 0,
-          totalPoints: 0,
-          totalTime: 0,
-          totalPenalty: 0
-        };
-      }
+      // Count unique solved problems
+      solvedCount = Object.values(submissionsByProblem).filter(submissions =>
+        submissions.some(s => s.status === 'ACCEPTED')
+      ).length;
     }
 
     const problemsWithStatus = contest.contestProblems.map(problem => ({
@@ -382,7 +142,7 @@ const getContestBySlug = async (req, res) => {
       data: {
         ...contest,
         contestProblems: problemsWithStatus,
-        userContestStats
+        solvedCount // Include solvedCount for clarity
       }
     });
   } catch (error) {
@@ -391,145 +151,7 @@ const getContestBySlug = async (req, res) => {
   }
 };
 
-const getContestLeaderboard = async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const limit = parseInt(req.query.limit) || 50;
-    const userId = req.user?.id;
-
-    const contest = await prisma.contest.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        title: true,
-        startTime: true,
-        endTime: true,
-        isActive: true
-      }
-    });
-
-    if (!contest) {
-      return res.status(404).json({ success: false, message: 'Contest not found' });
-    }
-
-    // Get enhanced leaderboard (DB + Redis)
-    const leaderboardData = await getEnhancedLeaderboard(contest.id, limit);
-
-    // Get current user's rank from database
-    let userRank = null;
-    if (userId) {
-      try {
-        const userRankData = await prisma.contestRank.findUnique({
-          where: {
-            contestId_userId: {
-              contestId: contest.id,
-              userId
-            }
-          }
-        });
-        userRank = userRankData ? userRankData.rank : null;
-
-        // Fallback to Redis if not in DB
-        if (!userRank) {
-          userRank = await getContestRank(contest.id, userId);
-        }
-      } catch (error) {
-        console.error('Error fetching user rank:', error);
-      }
-    }
-
-    // Get total participants count from database
-    const totalParticipants = await prisma.contestRank.count({
-      where: { contestId: contest.id }
-    });
-
-    res.json({
-      success: true,
-      data: {
-        contest: {
-          id: contest.id,
-          title: contest.title,
-          startTime: contest.startTime,
-          endTime: contest.endTime,
-          isActive: contest.isActive
-        },
-        leaderboard: leaderboardData.leaderboard,
-        userRank,
-        totalParticipants,
-        lastUpdated: Date.now(),
-        dataSource: leaderboardData.source
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching leaderboard:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch leaderboard' });
-  }
-};
-
-// Enhanced submit function that also updates database
-const submitContestSolutionEnhanced = async (req, res) => {
-  try {
-    // Call the original submit function
-    const result = await submitContestSolution(req, res);
-
-    // If submission was successful, update database leaderboard
-    if (result && result.success !== false) {
-      const { contestSlug } = req.params;
-      const userId = req.user?.id;
-
-      if (userId && contestSlug) {
-        const contest = await prisma.contest.findUnique({
-          where: { slug: contestSlug },
-          select: { id: true }
-        });
-
-        if (contest) {
-          // Update leaderboard in background (don't wait)
-          updateContestRankInDB(contest.id, userId).catch(console.error);
-        }
-      }
-    }
-
-    return result;
-  } catch (error) {
-    console.error('Error in enhanced submit:', error);
-    throw error;
-  }
-};
-
-const getProblemBySlug = async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const problem = await prisma.problem.findUnique({
-      where: { slug },
-      include: {
-        testCases: {
-          where: { isPublic: true },
-          select: { id: true, input: true, expectedOutput: true }
-        }
-      }
-    });
-
-    if (!problem) {
-      return res.status(404).json({ success: false, message: 'Problem not found' });
-    }
-
-    let tags = [];
-    if (problem.tags) {
-      try {
-        tags = JSON.parse(problem.tags);
-      } catch (e) {
-        console.error('Error parsing tags:', e);
-      }
-    }
-
-    res.json({ success: true, data: { ...problem, tags } });
-  } catch (error) {
-    console.error('Error fetching problem:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch problem' });
-  }
-};
-
+// Function to get contest problem by slug
 const getContestProblemBySlug = async (req, res) => {
   try {
     const { contestSlug, problemSlug } = req.params;
@@ -657,6 +279,7 @@ const getContestProblemBySlug = async (req, res) => {
   }
 };
 
+// Function to get contest submission status
 const getContestSubmissionStatus = async (req, res) => {
   try {
     const { submissionId } = req.params;
@@ -676,11 +299,6 @@ const getContestSubmissionStatus = async (req, res) => {
 
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Contest submission not found' });
-    }
-
-    // Update leaderboard after getting submission status (for accepted submissions)
-    if (submission.status === 'ACCEPTED') {
-      updateContestRankInDB(submission.contestProblem.contestId, userId).catch(console.error);
     }
 
     let detailedResults = [];
@@ -729,6 +347,7 @@ const getContestSubmissionStatus = async (req, res) => {
   }
 };
 
+// Function to get user contest submissions
 const getUserContestSubmissions = async (req, res) => {
   try {
     const { contestSlug, problemSlug } = req.params;
@@ -807,62 +426,10 @@ const getUserContestSubmissions = async (req, res) => {
   }
 };
 
-// Utility function to sync Redis leaderboard to database (can be called periodically)
-const syncLeaderboardToDatabase = async (contestId) => {
-  try {
-    console.log(`Syncing leaderboard for contest ${contestId}...`);
-
-    // Get all users who have submissions in this contest
-    const contestUsers = await prisma.contestSubmission.findMany({
-      where: { contestId },
-      select: { userId: true },
-      distinct: ['userId']
-    });
-
-    // Update each user's rank in database
-    for (const { userId } of contestUsers) {
-      await updateContestRankInDB(contestId, userId);
-    }
-
-    console.log(`Leaderboard sync completed for contest ${contestId}`);
-  } catch (error) {
-    console.error('Error syncing leaderboard to database:', error);
-  }
-};
-
-// Function to finalize contest (store final ranks)
-const finalizeContest = async (contestId) => {
-  try {
-    console.log(`Finalizing contest ${contestId}...`);
-
-    // Sync final leaderboard state
-    await syncLeaderboardToDatabase(contestId);
-
-    // Mark contest as inactive
-    await prisma.contest.update({
-      where: { id: contestId },
-      data: { isActive: false }
-    });
-
-    console.log(`Contest ${contestId} finalized successfully`);
-  } catch (error) {
-    console.error('Error finalizing contest:', error);
-  }
-};
-
 module.exports = {
   getAllContests,
   getContestBySlug,
-  getContestLeaderboard,
-  getProblemBySlug,
   getContestProblemBySlug,
-  submitContestSolution: submitContestSolutionEnhanced,
   getContestSubmissionStatus,
-  getUserContestSubmissions,
-  // New utility functions
-  updateContestRankInDB,
-  syncLeaderboardToDatabase,
-  finalizeContest,
-  getEnhancedLeaderboard,
-  recalculateContestRanks
+  getUserContestSubmissions
 };
